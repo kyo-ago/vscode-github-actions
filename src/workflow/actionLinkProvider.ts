@@ -33,34 +33,41 @@ export class GitHubActionsLinkProvider implements vscode.DocumentLinkProvider {
         return links;
       }
 
-      // Process jobs and their steps
       for (const job of workflowTemplate.jobs) {
-        if (job.type === "job" && "steps" in job) {
-          for (const step of job.steps) {
-            if ("uses" in step && step.uses) {
-              const usesToken = step.uses;
-              const usesValue = usesToken.value;
+        if (job.type !== "job" || !("steps" in job)) {
+          continue;
+        }
 
-              // Convert 1-based token position to 0-based VSCode position
-              if (usesToken.range) {
-                const startPos = new vscode.Position(
-                  usesToken.range.start.line - 1,
-                  usesToken.range.start.column - 1
-                );
-                const endPos = new vscode.Position(
-                  usesToken.range.end.line - 1,
-                  usesToken.range.end.column - 1
-                );
-                const range = new vscode.Range(startPos, endPos);
-
-                const targetUri = this.resolveUsesPath(document, usesValue);
-                if (targetUri) {
-                  const link = new vscode.DocumentLink(range, targetUri);
-                  links.push(link);
-                }
-              }
-            }
+        for (const step of job.steps) {
+          if (!("uses" in step) || !step.uses) {
+            continue;
           }
+
+          const usesToken = step.uses;
+          const usesValue = usesToken.value;
+
+          if (!usesToken.range) {
+            continue;
+          }
+
+          // Convert 1-based token position to 0-based VSCode position
+          const startPos = new vscode.Position(
+            usesToken.range.start.line - 1,
+            usesToken.range.start.column - 1
+          );
+          const endPos = new vscode.Position(
+            usesToken.range.end.line - 1,
+            usesToken.range.end.column - 1
+          );
+          const range = new vscode.Range(startPos, endPos);
+
+          const targetUri = this.resolveUsesPath(document, usesValue);
+          if (!targetUri) {
+            continue;
+          }
+
+          const link = new vscode.DocumentLink(range, targetUri);
+          links.push(link);
         }
       }
     } catch {
@@ -97,24 +104,19 @@ export class GitHubActionsLinkProvider implements vscode.DocumentLinkProvider {
       relativePath = relativePath.substring(0, atIndex);
     }
 
-    // Check if the path already ends with .yml or .yaml
     const hasYamlExtension = relativePath.endsWith(".yml") || relativePath.endsWith(".yaml");
-
     if (hasYamlExtension) {
       return null;
     }
 
-    // If no YAML extension, add /action.yml by default
     const actionPath = path.join(workspaceFolder.uri.fsPath, relativePath, "action.yml");
     return vscode.Uri.file(actionPath);
   }
 
   private resolveGitHubAction(usesValue: string): vscode.Uri | null {
-    // Remove version tag if present
     const atIndex = usesValue.indexOf("@");
     const actionPath = atIndex !== -1 ? usesValue.substring(0, atIndex) : usesValue;
 
-    // Split into parts: org/repo or org/repo/subpath
     const parts = actionPath.split("/");
     if (parts.length < 2) {
       return null;
@@ -124,16 +126,12 @@ export class GitHubActionsLinkProvider implements vscode.DocumentLinkProvider {
     const repo = parts[1];
     const subPath = parts.slice(2).join("/");
 
-    // Construct GitHub URL
-    let githubUrl: string;
     if (subPath) {
-      // Action is in a subdirectory
-      githubUrl = `https://github.com/${org}/${repo}/tree/main/${subPath}`;
-    } else {
-      // Action is at repository root
-      githubUrl = `https://github.com/${org}/${repo}`;
+      const githubUrl = `https://github.com/${org}/${repo}/tree/main/${subPath}`;
+      return vscode.Uri.parse(githubUrl);
     }
 
+    const githubUrl = `https://github.com/${org}/${repo}`;
     return vscode.Uri.parse(githubUrl);
   }
 }
