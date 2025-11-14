@@ -34,6 +34,7 @@ import {initResources} from "./treeViews/icons";
 import {initTreeViews} from "./treeViews/treeViews";
 import {deactivateLanguageServer, initLanguageServer} from "./workflow/languageServer";
 import {registerSignIn} from "./commands/signIn";
+import {GitHubActionsLinkProvider} from "./workflow/actionLinkProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
   initLogger();
@@ -107,6 +108,14 @@ export async function activate(context: vscode.ExtensionContext) {
         scheme: LogScheme
       },
       new WorkflowStepLogSymbolProvider()
+    )
+  );
+
+  // GitHub Actions link provider for 'uses' fields
+  context.subscriptions.push(
+    vscode.languages.registerDocumentLinkProvider(
+      {scheme: 'file', pattern: '**/.github/**/*.{yml,yaml}'},
+      new GitHubActionsLinkProvider()
     )
   );
 
